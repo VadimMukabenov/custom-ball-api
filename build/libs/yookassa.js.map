@@ -1,1 +1,0 @@
-{"version":3,"file":"yookassa.js","sourceRoot":"","sources":["../../src/libs/yookassa.ts"],"names":[],"mappings":";;;AAAA,wDAAoD;AAG7C,MAAM,iBAAiB,GAAG,CAAC,MAAc,EAAE,EAAE;IAChD,MAAM,QAAQ,GAAG,IAAI,0BAAW,CAAC;QAC7B,MAAM,EAAE,MAAM,CAAC,gBAAgB;QAC/B,SAAS,EAAE,MAAM,CAAC,mBAAmB;KACxC,CAAC,CAAC;IAEH,OAAO,QAAQ,CAAC;AACpB,CAAC,CAAA;AAPY,QAAA,iBAAiB,qBAO7B"}
