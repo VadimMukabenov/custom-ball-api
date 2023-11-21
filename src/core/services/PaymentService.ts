@@ -72,7 +72,11 @@ class PaymentService {
                     },
                     vat_code: 1,
                     quantity: "1",
-                }]
+                }],
+                customer: {
+                    phone: "+79164556267",
+                    email: "am@muniev.ru",
+                }
             },
             capture: true,
         };
