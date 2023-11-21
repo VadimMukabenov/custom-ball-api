@@ -3,6 +3,7 @@ import { getConfig } from "./config";
 import { buildApi } from "./routes/api";
 import { buildApp } from "./core/DI";
 import dotenv from 'dotenv';
+import cors, { CorsOptions } from "cors";
 
 //For env File 
 dotenv.config();
@@ -15,6 +16,19 @@ async function start() {
     const PORT = config.APP_PORT || 3000;
     const expressApp: Application = express();
 
+    const whitelist = ['https://i.moymyach.ru', 'http://localhost:5173']
+    const corsOptions: CorsOptions = {
+    origin: (origin, cb) => {
+            if (whitelist.indexOf(origin) > -1) {
+                cb(null, true)
+            } else {
+            cb(new Error('Запрещено CORS'))
+            }
+        },
+        methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+        optionsSuccessStatus: 200,
+    }
+    expressApp.use(cors(corsOptions))
     expressApp.use(express.json());
     expressApp.use(router);
 

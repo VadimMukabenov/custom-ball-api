@@ -9,6 +9,7 @@ class PaymentController {
 
     async run(req: Request, res: Response) {
         try {
+            console.log('req.body', req.body)
             const { amount, payment_method_type, confirmation } = req.body;
             const confirmationUrl = await this.paymentService.run({ amount, payment_method_type, confirmation });
             res.json({ 
