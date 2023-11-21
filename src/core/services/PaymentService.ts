@@ -73,6 +73,7 @@ class PaymentService {
                     vat_code: 1,
                     quantity: "1",
                     payment_subject: "commodity",
+                    payment_mode: "full_prepayment"
                 }],
                 customer: {
                     phone: "+79164556267",
