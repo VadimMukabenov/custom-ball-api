@@ -63,6 +63,17 @@ class PaymentService {
                 type: `${params.confirmation.type}`,
                 return_url: `${params.confirmation.return_url}`
             },
+            receipt: {
+                items: [{
+                    description: 'Мяч Спартак',
+                    amount: {
+                        value: `${params.amount}`,
+                        currency: 'RUB'
+                    },
+                    vat_code: 1,
+                    quantity: "1",
+                }]
+            },
             capture: true,
         };
 
