@@ -19,10 +19,13 @@ async function start() {
     const whitelist = ['https://i.moymyach.ru', 'http://localhost:5173']
     const corsOptions: CorsOptions = {
     origin: (origin, cb) => {
+            if(!origin){//for bypassing postman req with  no origin
+                return cb(null, true);
+            }
             if (whitelist.indexOf(origin) > -1) {
                 cb(null, true)
             } else {
-            cb(new Error('Запрещено CORS'))
+                cb(new Error('Запрещено CORS'))
             }
         },
         methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
