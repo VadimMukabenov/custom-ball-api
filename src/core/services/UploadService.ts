@@ -58,9 +58,8 @@ class UploadService {
         const year = date.getFullYear();
         const hours = date.getHours();
         const minutes = date.getMinutes();
-        const seconds = date.getSeconds();
 
-        return `${day}-${month}-${year}-${hours}:${minutes}:${seconds}`;
+        return `${day}-${month}-${year}-${hours}:${minutes}`;
     }
 }
 
