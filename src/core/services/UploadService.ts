@@ -17,10 +17,10 @@ class UploadService {
             return;
         }
         
+        const date = this.getDate();
         files.forEach((file) => {
             let buffer = file.buffer;
             if (buffer) {
-                const date = this.getDate();
                 const bucketName = process.env.AWS_BUCKET_NAME;
                 const filePath = `${date}_${email}/${file.fieldname}/${file.originalname}`;
 
@@ -36,7 +36,7 @@ class UploadService {
         });
 
         const resp = await Promise.all(uploads);
-        console.log(resp)
+        // console.log(resp)
     }
 
     // async uploadTxt(file) {
@@ -58,8 +58,9 @@ class UploadService {
         const year = date.getFullYear();
         const hours = date.getHours();
         const minutes = date.getMinutes();
+        const seconds = date.getSeconds();
 
-        return `${day}-${month}-${year}-${hours}:${minutes}`;
+        return `${day}-${month}-${year}-${hours}:${minutes}:${seconds}`;
     }
 }
 
