@@ -25,7 +25,9 @@
   "dependencies": {
     "@a2seven/yoo-checkout": "^1.1.4",
     "@aws-sdk/client-s3": "^3.454.0",
+    "@types/archiver": "^6.0.2",
     "@types/uuid": "^9.0.7",
+    "archiver": "^6.0.1",
     "aws-sdk": "^2.1499.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
