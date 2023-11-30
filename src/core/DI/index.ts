@@ -11,10 +11,10 @@ export interface buildAppResponse {
     }
 }
 
-export function buildApp(config: Config): buildAppResponse {
+export async function buildApp(config: Config): Promise<buildAppResponse> {
     return {
         controllers: {
-            paymentController: buildPaymentController(config),
+            paymentController: await buildPaymentController(config),
             uploadController: buildUploadController(config),
         }
     }

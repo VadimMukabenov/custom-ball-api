@@ -10,7 +10,7 @@ dotenv.config();
 
 async function start() {
     const config = getConfig();
-    const app = buildApp(config);
+    const app = await buildApp(config);
     const router = buildApi(app);
 
     const PORT = config.APP_PORT || 3000;
