@@ -1,9 +1,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import * as fs from "fs";
 import archiver from "archiver";
 import stream from "stream";
-import { String } from "aws-sdk/clients/acm";
 
 type uploadFilesType = {
     [fieldname: string]: Express.Multer.File[];
@@ -11,6 +9,7 @@ type uploadFilesType = {
 
 class UploadService {
     s3Client: S3Client;
+
     constructor(s3Client: S3Client) {
         this.s3Client = s3Client;
     }
@@ -24,10 +23,14 @@ class UploadService {
         
         const date = this.getDate();
 
-        await this.archiveAndUploadFiles(files, email, date);        
+        await this.archiveAndUploadFiles(files, email, date);
+        
+        return {
+            cloudDirName: `${date}_${email}`,
+        };
     }
 
-    streamTo(date: string, email: string, key: String) {
+    streamTo(date: string, email: string, key: string) {
         const _pass = new stream.PassThrough();
         const bucketName = process.env.AWS_BUCKET_NAME;
         const folderName = `${date}_${email}`;
