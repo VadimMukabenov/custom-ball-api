@@ -1,21 +1,58 @@
-import { S3Client } from "@aws-sdk/client-s3";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import archiver from "archiver";
-import stream from "stream";
+import stream, { Readable } from "stream";
+
+import nodemailer from "nodemailer";
+import EmailService from "../../libs/emailService";
+import { Attachment } from "nodemailer/lib/mailer";
 
 type uploadFilesType = {
     [fieldname: string]: Express.Multer.File[];
 } | Express.Multer.File[];
 
+type uploadToInputType = {
+    bucket: string;
+    key: string;
+    body: string | Uint8Array | Buffer | Readable;
+}
+
+type createUrlInputType = {
+    client: S3Client;
+    bucket: string;
+    key: string;
+    expiresIn?: number;
+}
+
+type UserData = {
+    full_name: string;
+    email: string;
+    phone: string;
+    address: string;
+}
+
+type sendEmailInputType = {
+    emailTo: string;
+    user: UserData;
+    urlToS3Object?: string | undefined;
+    fileName?: string | undefined;
+    fileContent?: string | Buffer | stream.Readable | undefined;
+    type: "success" | "failure";
+}
+
+
+
 class UploadService {
     s3Client: S3Client;
+    private emailService: EmailService;
 
-    constructor(s3Client: S3Client) {
+    constructor(s3Client: S3Client, emailService: EmailService) {
         this.s3Client = s3Client;
+        this.emailService = emailService;
     }
 
-    async run(files: uploadFilesType, email: string) {
-        // const uploads = [];
+    async run(files: uploadFilesType, user: UserData) {
+        const { email, full_name, phone, address } = user;
 
         if(!(files instanceof Array)) {
             return;
@@ -23,76 +60,216 @@ class UploadService {
         
         const date = this.getDate();
 
-        await this.archiveAndUploadFiles(files, email, date);
-        
+        const bucketName = process.env.AWS_BUCKET_NAME;
+        const folderName = `${date}_${email}`;
+        const fileName = `${date}_${email}.zip`;
+        const key = `${folderName}/${fileName}`;
+        const emailReciever = process.env.EMAIL_RECIEVER;
+     
+        const { uploadStream } = await this.archive(files);
+
+        const upload = this.uploadTo({
+            bucket: bucketName,
+            key,
+            body: uploadStream,
+        });
+
+        upload
+            .then((uploadResult) => {
+                const s3DownloadUrlPromise = this.createPresignedUrlWithClient({
+                    client: this.s3Client,
+                    bucket: bucketName,
+                    key,
+                    expiresIn: 3600 * 24 * 7,
+                });
+
+                s3DownloadUrlPromise
+                    .then((s3DownloadUrl) => {
+                        const emailInfoPromise = this.sendEmail({
+                            emailTo: emailReciever,
+                            type: "success",
+                            user,
+                            urlToS3Object: s3DownloadUrl,
+                        });
+
+                        emailInfoPromise
+                            .then((messageInfo) => {
+                                // console.log('Message sent...', messageInfo.response)
+                            })
+                            .catch((err) => {
+                                console.log(`Error while sendingEmail`, err);
+                                throw new Error("Error while sendingEmail")
+                            });
+                    })
+                    .catch((err) => {
+                        console.log(`Error while getting s3DownloadUrl`, err);
+                        this.sendEmail({
+                            emailTo: emailReciever,
+                            user,
+                            type: "failure"
+                        });
+                    });
+            })
+            .catch((err) => {
+                console.log(`Error while uploading`, err);
+                this.sendEmail({
+                    emailTo: emailReciever,
+                    user,
+                    type: "failure"
+                });
+            });
+
         return {
             cloudDirName: `${date}_${email}`,
         };
     }
 
-    streamTo(date: string, email: string, key: string) {
-        const _pass = new stream.PassThrough();
-        const bucketName = process.env.AWS_BUCKET_NAME;
-        const folderName = `${date}_${email}`;
-        const params = {
-            Bucket: bucketName, 
-            Key: `${folderName}/${key}`,
-            Body: _pass,
-        };
-        
-        const upload = this.s3Client.send(new PutObjectCommand(params));
-        return _pass;
+    createPresignedUrlWithClient({ client, bucket, key, expiresIn = 3600 }: createUrlInputType) {
+        const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+        return getSignedUrl(client, command, { expiresIn });
     }
 
-    async archiveAndUploadFiles(files: uploadFilesType, email: string, date: string) {
+    uploadTo({ bucket, key, body }: uploadToInputType) {
+        const params = {
+            Bucket: bucket, 
+            Key: `${key}`,
+            Body: body,
+        };
+        
+        return this.s3Client.send(new PutObjectCommand(params));
+    }
+
+    sendEmail({ emailTo, user, type, urlToS3Object, fileName, fileContent }: sendEmailInputType) {
+        let attachments: Attachment[] | undefined;
+        let html: string | undefined = "";
+        let subject: string = "Новый заказ";
+
+        if(type === "failure") {
+            subject = "Ошибка при создании заказа, свяжитесь с клиентом"
+        }
+
+        if(urlToS3Object) {
+            html = `
+                <a href="${urlToS3Object}">Скачать файлы с макетом</a>
+            `;
+        }
+
+        if(user) {
+            html += `
+                <br>
+                ФИО: ${user.full_name || ""};
+                <br>
+                Телефон: ${user.phone || ""};
+                <br>
+                Email: ${user.email || ""};
+                <br>
+                Адрес: ${user.address || ""};
+            `;
+        }
+        
+        if(fileName && fileContent) {
+            attachments = [
+                {
+                    filename: `${fileName}.zip`,
+                    content: fileContent,
+                }
+            ];
+        }
+        
+        
+        const emailInfo = this.emailService.sendEmail({
+            to: emailTo,
+            subject,
+            html,
+            attachments,
+        });
+
+        return emailInfo;
+    }
+
+    async archive(files: uploadFilesType) {
         if(!(files instanceof Array)) {
             return;
         }
 
-        const FILENAME = `${date}_${email}.zip`;
         // this way no need to save files to disk
-        const output = this.streamTo(date, email, FILENAME);
+        const archiver = this.getArchiveStream();
 
-        const archive = archiver('zip', {
-            zlib: { level: 9 } // Sets the compression level.
+        const uploadStream = new stream.PassThrough();
+        // const emailStream = new stream.PassThrough();
+        
+        // archiver.pipe(output);
+
+        archiver.pipe(uploadStream);
+        // archiver.pipe(emailStream);
+
+        this.handleStreamErrors(uploadStream, archiver);
+        // this.handleStreamErrors(emailStream, archiver);
+
+        for(let file of files) {
+            archiver.append(file.buffer, { name: `${file.fieldname}/${file.originalname}` });
+        }
+        
+        archiver.finalize();
+
+        return {
+            uploadStream,
+            // emailStream
+        }
+    }
+
+    getArchiveStream() {
+        try {
+            const archive = archiver('zip', {
+                zlib: { level: 9 } // Sets the compression level.
+            });
+    
+            // good practice to catch warnings (ie stat failures and other non-blocking errors)
+            archive.on('warning', function(err) {
+                if (err.code === 'ENOENT') {
+                // log warning
+                } else {
+                // throw error
+                throw err;
+                }
+            });
+            
+            // good practice to catch this error explicitly
+            archive.on('error', function(err) {
+                throw err;
+            });
+    
+            archive.on('close', () => {
+                console.log('Transform stream ended, buffer emptied.');
+                // Reset the transform stream and readable streams for the next request
+                archive.removeAllListeners();
+            });
+    
+            return archive;
+        } catch(err){
+            console.log(err);
+        }
+    }
+
+    handleStreamErrors(outputStream: stream.PassThrough, archiveStream) {
+        outputStream.on("error", (err) => {
+            console.log("error", err)
         });
 
         // listen for all archive data to be written
         // 'close' event is fired only when a file descriptor is involved
-        output.on('close', function() {
-            console.log(archive.pointer() + ' total bytes');
+        outputStream.on('close', function() {
+            console.log(archiveStream.pointer() + ' total bytes');
             console.log('archiver has been finalized and the output file descriptor has closed.');
+            outputStream.removeAllListeners();
         });
         
         // This event is fired when the data source is drained no matter what was the data source.
         // It is not part of this library but rather from the NodeJS Stream API.
         // @see: https://nodejs.org/api/stream.html#stream_event_end
-        output.on('end', function() {
+        outputStream.on('end', function() {
             console.log('Data has been drained');
         });
-        
-        // good practice to catch warnings (ie stat failures and other non-blocking errors)
-        archive.on('warning', function(err) {
-            if (err.code === 'ENOENT') {
-            // log warning
-            } else {
-            // throw error
-            throw err;
-            }
-        });
-        
-        // good practice to catch this error explicitly
-        archive.on('error', function(err) {
-            throw err;
-        });
-
-        archive.pipe(output);
-
-        for(let file of files) {
-            archive.append(file.buffer, { name: `${file.fieldname}/${file.originalname}` });
-        }
-
-        archive.finalize();
     }
 
     getDate() {
