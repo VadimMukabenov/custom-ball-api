@@ -8,6 +8,11 @@ export const getConfig = () => ({
     YOOKASSA_SHOP_ID: process.env.YOOKASSA_SHOP_ID || "",
     YOOKASSA_SECRET_KEY: process.env.YOOKASSA_SECRET_KEY || "",
     APP_PORT: process.env.APP_PORT,
+    EMAIL_HOST: process.env.EMAIL_HOST || "",
+    EMAIL_PORT: process.env.EMAIL_PORT || 0,
+    EMAIL_USERNAME: process.env.EMAIL_USERNAME || "",
+    EMAIL_PASSWORD: process.env.EMAIL_PASSWORD || "",
+    EMAIL_RECIEVER: process.env.EMAIL_RECIEVER || "",
 });
 
 export type Config = ReturnType<typeof getConfig>;

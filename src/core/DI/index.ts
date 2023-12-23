@@ -8,7 +8,7 @@ export interface buildAppResponse {
     controllers: {
         paymentController: PaymentController,
         uploadController: UploadController,
-    }
+    };
 }
 
 export async function buildApp(config: Config): Promise<buildAppResponse> {
@@ -16,6 +16,6 @@ export async function buildApp(config: Config): Promise<buildAppResponse> {
         controllers: {
             paymentController: await buildPaymentController(config),
             uploadController: buildUploadController(config),
-        }
+        },
     }
 }
