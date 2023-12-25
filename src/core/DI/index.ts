@@ -3,6 +3,7 @@ import { buildPaymentController } from "../DI/Payment";
 import { buildUploadController } from "../DI/Upload";
 import PaymentController from "../controllers/PaymentController";
 import UploadController from "../controllers/UploadController";
+import Container from "./container";
 
 export interface buildAppResponse {
     controllers: {
@@ -11,11 +12,11 @@ export interface buildAppResponse {
     };
 }
 
-export async function buildApp(config: Config): Promise<buildAppResponse> {
+export async function buildApp(container: typeof Container): Promise<buildAppResponse> {
     return {
         controllers: {
-            paymentController: await buildPaymentController(config),
-            uploadController: buildUploadController(config),
+            paymentController: await buildPaymentController(container),
+            uploadController: buildUploadController(container),
         },
     }
 }

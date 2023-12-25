@@ -6,6 +6,7 @@ import stream, { Readable } from "stream";
 import nodemailer from "nodemailer";
 import EmailService from "../../libs/emailService";
 import { Attachment } from "nodemailer/lib/mailer";
+import RedisClientService from "../../libs/redisClientService";
 
 type uploadFilesType = {
     [fieldname: string]: Express.Multer.File[];
@@ -38,6 +39,8 @@ type sendEmailInputType = {
     fileName?: string | undefined;
     fileContent?: string | Buffer | stream.Readable | undefined;
     type: "success" | "failure";
+    description?: string;
+    isOrderPaid?: boolean;
 }
 
 
@@ -45,15 +48,17 @@ type sendEmailInputType = {
 class UploadService {
     s3Client: S3Client;
     private emailService: EmailService;
+    private redisService: RedisClientService;
 
-    constructor(s3Client: S3Client, emailService: EmailService) {
+    constructor(s3Client: S3Client, emailService: EmailService, redisService: RedisClientService) {
         this.s3Client = s3Client;
         this.emailService = emailService;
+        this.redisService = redisService;
     }
 
     async run(files: uploadFilesType, user: UserData) {
         const { email, full_name, phone, address } = user;
-
+        
         if(!(files instanceof Array)) {
             return;
         }
@@ -67,13 +72,14 @@ class UploadService {
         const emailReciever = process.env.EMAIL_RECIEVER;
      
         const { uploadStream } = await this.archive(files);
+        console.time("upload")
 
         const upload = this.uploadTo({
             bucket: bucketName,
             key,
             body: uploadStream,
-        });
-
+        })
+        
         upload
             .then((uploadResult) => {
                 const s3DownloadUrlPromise = this.createPresignedUrlWithClient({
@@ -85,21 +91,37 @@ class UploadService {
 
                 s3DownloadUrlPromise
                     .then((s3DownloadUrl) => {
-                        const emailInfoPromise = this.sendEmail({
-                            emailTo: emailReciever,
-                            type: "success",
-                            user,
-                            urlToS3Object: s3DownloadUrl,
-                        });
+                        setTimeout(async () => {
+                            try {
+                                const redisClient = await this.redisService.connect();
+                                const paymentStatus = await redisClient.hGet(email, "payment_status");
 
-                        emailInfoPromise
-                            .then((messageInfo) => {
-                                // console.log('Message sent...', messageInfo.response)
-                            })
-                            .catch((err) => {
-                                console.log(`Error while sendingEmail`, err);
-                                throw new Error("Error while sendingEmail")
-                            });
+                                if(paymentStatus === "succeeded") {
+                                    const emailInfoPromise = await this.sendEmail({
+                                        emailTo: emailReciever,
+                                        type: "success",
+                                        user,
+                                        urlToS3Object: s3DownloadUrl,
+                                    });
+                                }
+
+                                if(paymentStatus === "canceled") {
+                                    this.sendEmail({
+                                        emailTo: emailReciever,
+                                        user,
+                                        type: "failure",
+                                        description: "Платеж отменили самостоятельно, истекло время на принятие платежа или платеж был отклонен ЮKassa или платежным провайдером"
+                                    });
+                                }
+                            } catch (error) {
+                                console.log("Error while sending success email",error);
+                                this.sendEmail({
+                                    emailTo: emailReciever,
+                                    user,
+                                    type: "failure"
+                                });
+                            }
+                        }, 1000 * 60 * 5); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
@@ -118,7 +140,9 @@ class UploadService {
                     type: "failure"
                 });
             });
+        
 
+        console.timeEnd("upload")
         return {
             cloudDirName: `${date}_${email}`,
         };
@@ -139,7 +163,7 @@ class UploadService {
         return this.s3Client.send(new PutObjectCommand(params));
     }
 
-    sendEmail({ emailTo, user, type, urlToS3Object, fileName, fileContent }: sendEmailInputType) {
+    sendEmail({ emailTo, user, type, urlToS3Object, fileName, fileContent, description, isOrderPaid }: sendEmailInputType) {
         let attachments: Attachment[] | undefined;
         let html: string | undefined = "";
         let subject: string = "Новый заказ";
@@ -164,6 +188,13 @@ class UploadService {
                 Email: ${user.email || ""};
                 <br>
                 Адрес: ${user.address || ""};
+                <br>
+                Общая сумма: 5000 руб.
+                <br>
+                Сумма доставки: 500 руб.
+                <br>
+                Статус оплаты: ${isOrderPaid ? "Оплачен" : "Не оплачен"}
+                ${description || ""}
             `;
         }
         
@@ -306,3 +337,31 @@ export default UploadService;
 
         // const resp = await Promise.all(uploads);
         // console.log(resp)
+
+
+
+        // this.uploadTo({
+        //     bucket: bucketName,
+        //     key,
+        //     body: uploadStream,
+        // })
+        //     .then(async (uploadResult) => {
+        //         const s3DownloadUrl = await this.createPresignedUrlWithClient({
+        //             client: this.s3Client,
+        //             bucket: bucketName,
+        //             key,
+        //             expiresIn: 3600 * 24 * 7,
+        //         });
+        
+        //         const emailInfoPromise = await this.sendEmail({
+        //             emailTo: emailReciever,
+        //             type: "success",
+        //             user,
+        //             urlToS3Object: s3DownloadUrl,
+        //         });
+
+        //         console.log(`message sent`, emailInfoPromise.accepted)
+        //     })
+        //     .catch((err) => {
+        //         console.log(err)
+        //     })

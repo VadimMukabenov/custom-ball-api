@@ -4,13 +4,15 @@ import { buildApi } from "./routes/api";
 import { buildApp } from "./core/DI";
 import dotenv from 'dotenv';
 import cors, { CorsOptions } from "cors";
+import Container from './core/DI/container';
 
 //For env File 
 dotenv.config();
 
 async function start() {
     const config = getConfig();
-    const app = await buildApp(config);
+    const container = await Container.init();
+    const app = await buildApp(container);
     const router = buildApi(app);
 
     const PORT = config.APP_PORT || 3000;

@@ -3,6 +3,7 @@ import { YooCheckout } from '@a2seven/yoo-checkout';
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
 import type { RedisClientType } from 'redis';
+import RedisClientService from "../../libs/redisClientService";
 
 interface paymentPayload {
     amount: number;
@@ -16,27 +17,32 @@ interface paymentPayload {
 class PaymentService {
     yookassaClient: YooCheckout;
     s3Client: S3Client;
-    redisClient: RedisClientType;
+    private redisService: RedisClientService;
 
     constructor(
         yookassaClient: YooCheckout, 
         s3Client: S3Client,
-        redisClient: RedisClientType,
+        redisService: RedisClientService,
     ) {
         this.yookassaClient = yookassaClient;
         this.s3Client = s3Client;
-        this.redisClient = redisClient;
+        this.redisService = redisService;
     }
 
-    async run(params: paymentPayload, cloudDirName: string) {
+    async run(params: paymentPayload, cloudDirName: string, email: string) {
+        const redisClient = await this.redisService.connect();
+        
         const idempotenceKey = uuidv4();
         const createPayload = this.getPayload(params);
         try {
             const payment = await this.yookassaClient.createPayment(createPayload, idempotenceKey);
             
-            await this.redisClient.hSet('yandex-cloud-bucket', payment.id, cloudDirName);
+            await redisClient.hSet(email, payment.id, cloudDirName);
+            await redisClient.hSet(email, 'payment_id', payment.id);
+            
+            this.checkPaymentAndUploadConfirmation(payment.id, email);
 
-            this.checkPaymentAndUploadConfirmation(payment.id);
+            await redisClient.disconnect();
 
             return payment.confirmation.confirmation_url;
         } catch (error) {
@@ -45,19 +51,31 @@ class PaymentService {
         
     }
 
-    checkPaymentAndUploadConfirmation(paymentId: string) {
+    checkPaymentAndUploadConfirmation(paymentId: string, email: string) {
         // Отправка запроса провайдеру для проверки оплаты платежа
         const interval = setInterval(async () => {
+            
             const payment = await this.yookassaClient.getPayment(paymentId);
             
             // Если платеж оплачен, останавливаем интервал
             if (payment.status === 'succeeded') {
                 clearInterval(interval);
-                await this.uploadPaymentConfirmation(payment);
+                const redisClient = await this.redisService.connect();
+                await redisClient.hSet(email, "payment_status", "succeeded");
+                await redisClient.disconnect();
+
+                await this.uploadPaymentConfirmation(payment, email);
                 // console.log('Платеж успешно оплачен');
                 
             }
-        }, 5000); // Проверка каждые 5 секунд
+
+            if(payment.status === "canceled") {
+                const redisClient = await this.redisService.connect();
+                await redisClient.hSet(email, "payment_status", "canceled");
+                await redisClient.disconnect();
+                // console.log(`Оплата с id: ${payment.id} и client email: ${email} не прошла!`);
+            }
+        }, 1000 * 60); // Проверка каждую минуту
 
         setTimeout(() => {
             // если никто не оплатил в течении часа, удаляем интервал.
@@ -101,11 +119,12 @@ class PaymentService {
         return createPayload;
     }
 
-    async uploadPaymentConfirmation(payment: Payment) {
+    async uploadPaymentConfirmation(payment: Payment, email: string) {
         // const data = JSON.stringify(payment);
         const data = "Статус: Оплачен";
+        const redisClient = await this.redisService.connect();
 
-        const folderName = await this.redisClient.hGet('yandex-cloud-bucket', payment.id);
+        const folderName = await redisClient.hGet(email, payment.id);
         const bucketName = process.env.AWS_BUCKET_NAME;
 
         const params = {
@@ -115,7 +134,8 @@ class PaymentService {
         };
 
         const upload = await this.s3Client.send(new PutObjectCommand(params));
-        // console.log(upload);
+        
+        await redisClient.disconnect();
     }
 }
 
