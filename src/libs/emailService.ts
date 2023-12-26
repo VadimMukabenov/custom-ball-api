@@ -35,8 +35,6 @@ function getEmailClient(config: smtpConfig) {
         secure: false,
     });
 
-    console.log('transporter', transporter.options)
-
     return transporter;
 };
 

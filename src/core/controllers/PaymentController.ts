@@ -9,10 +9,11 @@ class PaymentController {
 
     async run(req: Request, res: Response) {
         try {
-            const { amount, payment_method_type, confirmation, cloud_dir_name } = req.body;
+            const { amount, payment_method_type, confirmation, cloud_dir_name, email } = req.body;
             const confirmationUrl = await this.paymentService.run(
                 { amount, payment_method_type, confirmation }, 
-                cloud_dir_name
+                cloud_dir_name,
+                email
             );
             
             res.json({ 
