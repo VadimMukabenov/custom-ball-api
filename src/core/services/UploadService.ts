@@ -3,10 +3,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import archiver from "archiver";
 import stream, { Readable } from "stream";
 
-import nodemailer from "nodemailer";
 import EmailService from "../../libs/emailService";
 import { Attachment } from "nodemailer/lib/mailer";
-import RedisClientService from "../../libs/redisClientService";
+import { RedisClientType } from "redis";
 
 type uploadFilesType = {
     [fieldname: string]: Express.Multer.File[];
@@ -48,12 +47,12 @@ type sendEmailInputType = {
 class UploadService {
     s3Client: S3Client;
     private emailService: EmailService;
-    private redisService: RedisClientService;
+    private redisClient: RedisClientType;
 
-    constructor(s3Client: S3Client, emailService: EmailService, redisService: RedisClientService) {
+    constructor(s3Client: S3Client, emailService: EmailService, redisClient: RedisClientType) {
         this.s3Client = s3Client;
         this.emailService = emailService;
-        this.redisService = redisService;
+        this.redisClient = redisClient;
     }
 
     async run(files: uploadFilesType, user: UserData) {
@@ -93,8 +92,7 @@ class UploadService {
                     .then((s3DownloadUrl) => {
                         setTimeout(async () => {
                             try {
-                                const redisClient = await this.redisService.connect();
-                                const paymentStatus = await redisClient.hGet(email, "payment_status");
+                                const paymentStatus = await this.redisClient.hGet(email, "payment_status");
 
                                 if(paymentStatus === "succeeded") {
                                     const emailInfoPromise = await this.sendEmail({
@@ -103,10 +101,8 @@ class UploadService {
                                         user,
                                         urlToS3Object: s3DownloadUrl,
                                     });
-                                }
-
-                                if(paymentStatus === "canceled") {
-                                    this.sendEmail({
+                                } else {
+                                    await this.sendEmail({
                                         emailTo: emailReciever,
                                         user,
                                         type: "failure",
@@ -121,7 +117,7 @@ class UploadService {
                                     type: "failure"
                                 });
                             }
-                        }, 1000 * 60 * 5); // 15 minutes
+                        }, 1000 * 60 * 10); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
@@ -209,6 +205,7 @@ class UploadService {
         
         
         const emailInfo = this.emailService.sendEmail({
+            from: "unmanned08@yandex.ru",
             to: emailTo,
             subject,
             html,

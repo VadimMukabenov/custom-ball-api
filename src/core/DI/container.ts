@@ -1,7 +1,7 @@
 import { Config, getConfig } from "../../config";
 import EmailService, { smtpConfig } from "../../libs/emailService";
 import RedisClientService from "../../libs/redisClientService";
-import type { RedisClientOptions } from 'redis';
+import type { RedisClientOptions, RedisClientType } from 'redis';
 import dotenv from 'dotenv';
 
 type ContainerEntities = {
@@ -9,7 +9,7 @@ type ContainerEntities = {
 }
 
 type ExternalServicesType = {
-    redisService: RedisClientService;
+    redisClient: RedisClientType;
     emailService: EmailService;
 }
 
@@ -30,10 +30,10 @@ class Container {
     }
 
     async init() {
-        const redisService = await this.getRedisService();
+        const redisClient = await this.getRedisService();
         const emailService = this.getEmailService();
 
-        this.setExternalService("redisService", redisService);
+        this.setExternalService("redisClient", redisClient);
         this.setExternalService("emailService", emailService);
 
         return this;
@@ -57,6 +57,7 @@ class Container {
             host: this.config.EMAIL_HOST,
             port: Number(this.config.EMAIL_PORT),
             secure: false,
+            service: this.config.EMAIL_SERVICE,
             auth: {
                 user: account?.user || this.config.EMAIL_USERNAME || "test",
                 pass: account?.pass || this.config.EMAIL_PASSWORD || "test",
@@ -69,7 +70,7 @@ class Container {
     }
 
     private async getRedisService(options?: RedisClientOptions) {
-        return (new RedisClientService(options));
+        return (new RedisClientService(options)).connect();
     }
 }
 
