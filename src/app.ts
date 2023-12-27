@@ -18,7 +18,7 @@ async function start() {
     const PORT = config.APP_PORT || 3000;
     const expressApp: Application = express();
 
-    const whitelist = ['https://i.moymyach.ru', 'http://localhost:5173']
+    const whitelist = ['https://i.moymyach.ru', 'http://172.29.193.88:5173']
     const corsOptions: CorsOptions = {
     origin: (origin, cb) => {
             if(!origin){//for bypassing postman req with  no origin
