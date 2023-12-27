@@ -117,7 +117,7 @@ class UploadService {
                                     type: "failure"
                                 });
                             }
-                        }, 1000 * 60 * 10); // 15 minutes
+                        }, 1000 * 60 * 1); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
