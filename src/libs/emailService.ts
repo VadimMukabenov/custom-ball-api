@@ -6,6 +6,7 @@ export interface smtpConfig {
     host: string,
     port: number,
     secure?: boolean,
+    service: string,
     auth: {
       user: string,
       pass: string,
@@ -27,12 +28,12 @@ function getEmailClient(config: smtpConfig) {
     const transporter = nodemailer.createTransport({
         host: config.host,
         port: Number(config.port),
-        service: "gmail",
+        // service: config.service,
         auth: {
             user: config.auth.user,
             pass: config.auth.pass,
         },
-        secure: false,
+        secure: true,
     });
 
     return transporter;

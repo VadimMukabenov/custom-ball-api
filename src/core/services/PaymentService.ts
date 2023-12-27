@@ -17,32 +17,28 @@ interface paymentPayload {
 class PaymentService {
     yookassaClient: YooCheckout;
     s3Client: S3Client;
-    private redisService: RedisClientService;
+    private redisClient: RedisClientType;
 
     constructor(
         yookassaClient: YooCheckout, 
         s3Client: S3Client,
-        redisService: RedisClientService,
+        redisClient: RedisClientType,
     ) {
         this.yookassaClient = yookassaClient;
         this.s3Client = s3Client;
-        this.redisService = redisService;
+        this.redisClient = redisClient;
     }
 
     async run(params: paymentPayload, cloudDirName: string, email: string) {
-        const redisClient = await this.redisService.connect();
-        
         const idempotenceKey = uuidv4();
         const createPayload = this.getPayload(params);
         try {
             const payment = await this.yookassaClient.createPayment(createPayload, idempotenceKey);
             
-            await redisClient.hSet(email, payment.id, cloudDirName);
-            await redisClient.hSet(email, 'payment_id', payment.id);
+            await this.redisClient.hSet(email, payment.id, cloudDirName);
+            await this.redisClient.hSet(email, 'payment_id', payment.id);
             
             this.checkPaymentAndUploadConfirmation(payment.id, email);
-
-            await redisClient.disconnect();
 
             return payment.confirmation.confirmation_url;
         } catch (error) {
@@ -60,9 +56,9 @@ class PaymentService {
             // Если платеж оплачен, останавливаем интервал
             if (payment.status === 'succeeded') {
                 clearInterval(interval);
-                const redisClient = await this.redisService.connect();
-                await redisClient.hSet(email, "payment_status", "succeeded");
-                await redisClient.disconnect();
+                
+                await this.redisClient.hSet(email, "payment_status", "succeeded");
+                
 
                 await this.uploadPaymentConfirmation(payment, email);
                 // console.log('Платеж успешно оплачен');
@@ -70,9 +66,9 @@ class PaymentService {
             }
 
             if(payment.status === "canceled") {
-                const redisClient = await this.redisService.connect();
-                await redisClient.hSet(email, "payment_status", "canceled");
-                await redisClient.disconnect();
+                
+                await this.redisClient.hSet(email, "payment_status", "canceled");
+                
                 // console.log(`Оплата с id: ${payment.id} и client email: ${email} не прошла!`);
             }
         }, 1000 * 60); // Проверка каждую минуту
@@ -122,9 +118,8 @@ class PaymentService {
     async uploadPaymentConfirmation(payment: Payment, email: string) {
         // const data = JSON.stringify(payment);
         const data = "Статус: Оплачен";
-        const redisClient = await this.redisService.connect();
 
-        const folderName = await redisClient.hGet(email, payment.id);
+        const folderName = await this.redisClient.hGet(email, payment.id);
         const bucketName = process.env.AWS_BUCKET_NAME;
 
         const params = {
@@ -135,7 +130,6 @@ class PaymentService {
 
         const upload = await this.s3Client.send(new PutObjectCommand(params));
         
-        await redisClient.disconnect();
     }
 }
 
