@@ -100,6 +100,7 @@ class UploadService {
                                         type: "success",
                                         user,
                                         urlToS3Object: s3DownloadUrl,
+                                        isOrderPaid: true,
                                     });
                                 } else {
                                     await this.sendEmail({
@@ -190,6 +191,7 @@ class UploadService {
                 Сумма доставки: 500 руб.
                 <br>
                 Статус оплаты: ${isOrderPaid ? "Оплачен" : "Не оплачен"}
+                <br>
                 ${description || ""}
             `;
         }
