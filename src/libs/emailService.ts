@@ -34,9 +34,6 @@ function getEmailClient(config: smtpConfig) {
             pass: config.auth.pass,
         },
         secure: true,
-        tls: {
-            ciphers:'SSLv3'
-        }
     });
 
     return transporter;
