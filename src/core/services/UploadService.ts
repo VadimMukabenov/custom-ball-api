@@ -6,6 +6,7 @@ import stream, { Readable } from "stream";
 import EmailService from "../../libs/emailService";
 import { Attachment } from "nodemailer/lib/mailer";
 import { RedisClientType } from "redis";
+import { YooCheckout } from "@a2seven/yoo-checkout";
 
 type uploadFilesType = {
     [fieldname: string]: Express.Multer.File[];
@@ -42,17 +43,22 @@ type sendEmailInputType = {
     isOrderPaid?: boolean;
 }
 
-
-
 class UploadService {
     s3Client: S3Client;
+    yookassaClient: YooCheckout;
     private emailService: EmailService;
     private redisClient: RedisClientType;
 
-    constructor(s3Client: S3Client, emailService: EmailService, redisClient: RedisClientType) {
+    constructor(
+        s3Client: S3Client, 
+        emailService: EmailService, 
+        redisClient: RedisClientType, 
+        yookassaClient: YooCheckout
+    ) {
         this.s3Client = s3Client;
         this.emailService = emailService;
         this.redisClient = redisClient;
+        this.yookassaClient = yookassaClient;
     }
 
     async run(files: uploadFilesType, user: UserData) {
@@ -73,11 +79,13 @@ class UploadService {
         const { uploadStream } = await this.archive(files);
         console.time("upload")
 
+        const cloudDirName = `${date}_${email}`;
+
         const upload = this.uploadTo({
             bucket: bucketName,
             key,
             body: uploadStream,
-        })
+        });
         
         upload
             .then((uploadResult) => {
@@ -92,9 +100,14 @@ class UploadService {
                     .then((s3DownloadUrl) => {
                         setTimeout(async () => {
                             try {
-                                const paymentStatus = await this.redisClient.hGet(email, "payment_status");
+                                const paymentId = await this.redisClient.hGet(email, cloudDirName);
+                                if(!paymentId) {
+                                    throw new Error("Ошибка при создании заказа")
+                                }
+                                
+                                const payment = await this.yookassaClient.getPayment(paymentId);
 
-                                if(paymentStatus === "succeeded") {
+                                if(payment.status === "succeeded") {
                                     const emailInfoPromise = await this.sendEmail({
                                         emailTo: emailReciever,
                                         type: "success",
@@ -102,6 +115,8 @@ class UploadService {
                                         urlToS3Object: s3DownloadUrl,
                                         isOrderPaid: true,
                                     });
+
+                                    await this.uploadPaymentConfirmation(cloudDirName);
                                 } else {
                                     await this.sendEmail({
                                         emailTo: emailReciever,
@@ -112,13 +127,19 @@ class UploadService {
                                 }
                             } catch (error) {
                                 console.log("Error while sending success email",error);
+                                let description = "";
+                                if(error instanceof Error) {
+                                    description = error.message;
+                                }
+
                                 this.sendEmail({
                                     emailTo: emailReciever,
                                     user,
-                                    type: "failure"
+                                    type: "failure",
+                                    description
                                 });
                             }
-                        }, 1000 * 60 * 3); // 15 minutes
+                        }, 1000 * 60 * 1); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
@@ -141,7 +162,7 @@ class UploadService {
 
         console.timeEnd("upload")
         return {
-            cloudDirName: `${date}_${email}`,
+            cloudDirName,
         };
     }
 
@@ -298,6 +319,21 @@ class UploadService {
         outputStream.on('end', function() {
             console.log('Data has been drained');
         });
+    }
+
+    async uploadPaymentConfirmation(folderName: string) {
+        // const data = JSON.stringify(payment);
+        const data = "Статус: Оплачен";
+        const bucketName = process.env.AWS_BUCKET_NAME;
+
+        const params = {
+            Bucket: bucketName, 
+            Key: `${folderName}/payment.txt`,
+            Body: data,
+        };
+
+        const upload = await this.s3Client.send(new PutObjectCommand(params));
+        
     }
 
     getDate() {
