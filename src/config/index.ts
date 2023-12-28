@@ -12,8 +12,9 @@ export const getConfig = () => ({
     EMAIL_PORT: process.env.EMAIL_PORT || 0,
     EMAIL_USERNAME: process.env.EMAIL_USERNAME || "",
     EMAIL_PASSWORD: process.env.EMAIL_PASSWORD || "",
-    EMAIL_RECIEVER: process.env.EMAIL_RECIEVER || "",
     EMAIL_SERVICE: process.env.EMAIL_SERVICE || "",
+    EMAIL_RECIEVER1: process.env.EMAIL_RECIEVER1 || "",
+    EMAIL_RECIEVER2: process.env.EMAIL_RECIEVER2 || "",
 });
 
 export type Config = ReturnType<typeof getConfig>;
