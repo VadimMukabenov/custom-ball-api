@@ -15,6 +15,7 @@ export const getConfig = () => ({
     EMAIL_SERVICE: process.env.EMAIL_SERVICE || "",
     EMAIL_RECIEVER1: process.env.EMAIL_RECIEVER1 || "",
     EMAIL_RECIEVER2: process.env.EMAIL_RECIEVER2 || "",
+    EMAIL_SEND_TIMEOUT: process.env.EMAIL_SEND_TIMEOUT || 0,
 });
 
 export type Config = ReturnType<typeof getConfig>;

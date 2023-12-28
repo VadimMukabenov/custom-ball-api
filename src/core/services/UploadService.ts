@@ -121,6 +121,7 @@ class UploadService {
                                     await this.sendEmail({
                                         emailTo: emailReciever,
                                         user,
+                                        urlToS3Object: s3DownloadUrl,
                                         type: "failure",
                                         description: "Платеж отменили самостоятельно, истекло время на принятие платежа или платеж был отклонен ЮKassa или платежным провайдером"
                                     });
@@ -136,17 +137,19 @@ class UploadService {
                                     emailTo: emailReciever,
                                     user,
                                     type: "failure",
+                                    urlToS3Object: s3DownloadUrl,
                                     description
                                 });
                             }
-                        }, 1000 * 60 * 15); // 15 minutes
+                        }, 1000 * 60 * Number(process.env.EMAIL_SEND_TIMEOUT)); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
                         this.sendEmail({
                             emailTo: emailReciever,
                             user,
-                            type: "failure"
+                            type: "failure",
+                            description: "Не удалось получить ссылку на скачивание",
                         });
                     });
             })
@@ -155,7 +158,8 @@ class UploadService {
                 this.sendEmail({
                     emailTo: emailReciever,
                     user,
-                    type: "failure"
+                    type: "failure",
+                    description: "Не удалось загрузить файлы клиента",
                 });
             });
         
