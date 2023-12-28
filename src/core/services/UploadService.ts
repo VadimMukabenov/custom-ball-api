@@ -33,7 +33,7 @@ type UserData = {
 }
 
 type sendEmailInputType = {
-    emailTo: string;
+    emailTo: string | Array<string>;
     user: UserData;
     urlToS3Object?: string | undefined;
     fileName?: string | undefined;
@@ -74,7 +74,7 @@ class UploadService {
         const folderName = `${date}_${email}`;
         const fileName = `${date}_${email}.zip`;
         const key = `${folderName}/${fileName}`;
-        const emailReciever = process.env.EMAIL_RECIEVER;
+        const emailReciever = [process.env.EMAIL_RECIEVER1, process.env.EMAIL_RECIEVER2];
      
         const { uploadStream } = await this.archive(files);
         console.time("upload")
@@ -139,7 +139,7 @@ class UploadService {
                                     description
                                 });
                             }
-                        }, 1000 * 60 * 3); // 15 minutes
+                        }, 1000 * 60 * 15); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
@@ -184,11 +184,11 @@ class UploadService {
     sendEmail({ emailTo, user, type, urlToS3Object, fileName, fileContent, description, isOrderPaid }: sendEmailInputType) {
         let attachments: Attachment[] | undefined;
         let html: string | undefined = "";
-        let subject: string = "Новый заказ";
+        let subject: string = "Заказ с конструктора";
 
-        if(type === "failure") {
-            subject = "Ошибка при создании заказа, свяжитесь с клиентом"
-        }
+        // if(type === "failure") {
+        //     subject = "Ошибка при создании заказа, свяжитесь с клиентом"
+        // }
 
         if(urlToS3Object) {
             html = `
