@@ -139,7 +139,7 @@ class UploadService {
                                     description
                                 });
                             }
-                        }, 1000 * 60 * 1); // 15 minutes
+                        }, 1000 * 60 * 3); // 15 minutes
                     })
                     .catch((err) => {
                         console.log(`Error while getting s3DownloadUrl`, err);
