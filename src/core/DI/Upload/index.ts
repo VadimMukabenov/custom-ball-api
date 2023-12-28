@@ -5,10 +5,16 @@ import Container from "../../DI/container";
 
 export function buildUploadController(container: typeof Container) {
     const { config, externalServices } = container;
-    const { emailService, redisClient } = externalServices;
+    const { emailService, redisClient, yookassaClient } = externalServices;
     const s3Client = getS3Client(config);
 
-    const uploadService = new UploadService(s3Client, emailService, redisClient);
+    const uploadService = new UploadService(
+        s3Client, 
+        emailService, 
+        redisClient,
+        yookassaClient,
+    );
+    
     const uploadController = new UploadController(uploadService);
 
     return uploadController;

@@ -3,6 +3,8 @@ import EmailService, { smtpConfig } from "../../libs/emailService";
 import RedisClientService from "../../libs/redisClientService";
 import type { RedisClientOptions, RedisClientType } from 'redis';
 import dotenv from 'dotenv';
+import { YooCheckout } from "@a2seven/yoo-checkout";
+import { getYooKassaClient } from "../../libs/yookassa";
 
 type ContainerEntities = {
     [className: string]: any;
@@ -11,6 +13,7 @@ type ContainerEntities = {
 type ExternalServicesType = {
     redisClient: RedisClientType;
     emailService: EmailService;
+    yookassaClient: YooCheckout;
 }
 
 class Container {
@@ -32,9 +35,11 @@ class Container {
     async init() {
         const redisClient = await this.getRedisService();
         const emailService = this.getEmailService();
+        const yookassaClient = this.getYoukassaClient();
 
         this.setExternalService("redisClient", redisClient);
         this.setExternalService("emailService", emailService);
+        this.setExternalService("yookassaClient", yookassaClient);
 
         return this;
     }
@@ -71,6 +76,13 @@ class Container {
 
     private async getRedisService(options?: RedisClientOptions) {
         return (new RedisClientService(options)).connect();
+    }
+
+    private getYoukassaClient() {
+        return getYooKassaClient({
+            shopId: this.config.YOOKASSA_SHOP_ID,
+            secretKey: this.config.YOOKASSA_SECRET_KEY,
+        });
     }
 }
 

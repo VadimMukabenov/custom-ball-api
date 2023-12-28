@@ -1,11 +1,7 @@
-import { YooCheckout } from '@a2seven/yoo-checkout';
-import type { Config } from "../config";
+import { IYooCheckoutOptions, YooCheckout } from '@a2seven/yoo-checkout';
 
-export const getYooKassaClient = (config: Config) => {
-    const checkout = new YooCheckout({ 
-        shopId: config.YOOKASSA_SHOP_ID, 
-        secretKey: config.YOOKASSA_SECRET_KEY 
-    });
+export const getYooKassaClient = (config: IYooCheckoutOptions) => {
+    const checkout = new YooCheckout(config);
 
     return checkout;
 }
